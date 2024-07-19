@@ -25,7 +25,7 @@ class Iotawatt:
         username=None,
         password=None,
         integratedInterval="y",
-        includeNonTotalSensors="y"
+        includeNonTotalSensors=True
     ):
         self._device_name = device_name
         self._ip = ip
