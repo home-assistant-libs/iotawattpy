@@ -11,7 +11,7 @@ setuptools.setup(
     description="Python library for the IoTaWatt Energy device",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/gtdiehl/iotawattpy",
+    url="https://github.com/home-assistant-libs/iotawattpy",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
