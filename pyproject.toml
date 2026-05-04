@@ -1,0 +1,153 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name        = "ha-iotawattpy"
+license     = {text = "GPL-3.0-or-later"}
+description = "Python library for the IoTaWatt Energy device"
+readme      = "README.md"
+authors     = [
+    {name = "Greg Diehl", email = "greg.diehl.gtd@gmail.com"}
+]
+keywords    = ["iotawatt", "energy", "home-assistant"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.24",
+]
+version = "0.1.2"
+
+[project.urls]
+"Homepage"    = "https://pypi.org/project/ha-iotawattpy"
+"Source Code" = "https://github.com/home-assistant-libs/iotawattpy"
+"Bug Reports" = "https://github.com/home-assistant-libs/iotawattpy/issues"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.10",
+    "pre-commit>=4.0",
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5",
+    "pytest-timeout>=2",
+    "respx>=0.21",
+    "ruff>=0.6",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["iotawattpy"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/iotawattpy",
+]
+
+[tool.coverage.report]
+show_missing = true
+# Test suite is currently minimal; raise this as tests are added.
+fail_under = 0
+
+[tool.coverage.run]
+source = ["iotawattpy"]
+branch = true
+
+[tool.mypy]
+# Specify the target platform details in config, so your developers are
+# free to run mypy on Windows, Linux, or macOS and get consistent
+# results.
+platform = "linux"
+python_version = "3.13"
+
+# show error messages from unrelated files
+follow_imports = "normal"
+
+# suppress errors about unsatisfied imports
+ignore_missing_imports = true
+
+# be strict
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+warn_incomplete_stub = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+addopts = "--cov"
+asyncio_mode = "auto"
+
+[tool.ruff.lint]
+ignore = [
+  "ANN401", # Opinioated warning on disallowing dynamically typed expressions
+  "COM812", # Recommended to disable due conflicts with ruff format
+  "D203", # Conflicts with other rules
+  "D213", # Conflicts with other rules
+  "D417", # False positives in some occasions
+  "ISC001", # Recommended to disable due conflicts with ruff format
+  "PLR2004", # Just annoying, not really useful
+  "PLR0913", # Too many arguments
+]
+select = ["ALL"]
+
+[tool.ruff.lint.per-file-ignores]
+# The library exposes a stable camelCase API consumed by Home Assistant
+# (e.g. getName, setValue, integratedInterval). The naming rules are
+# disabled package-wide rather than per-method to keep the source clean.
+"iotawattpy/**" = [
+    "N802",   # Function name should be lowercase
+    "N803",   # Argument name should be lowercase
+    "N806",   # Variable in function should be lowercase
+    "N815",   # Variable in class scope should not be mixedCase
+    "FBT001", # Boolean-typed positional argument
+    "FBT002", # Boolean default positional argument
+    "PLR0911", # Too many return statements
+    "PLR0912", # Too many branches
+    "PLR0915", # Too many statements
+]
+"tests/**" = [
+    "D100",  # Missing docstring in public module
+    "D103",  # Missing docstring in public function
+    "D104",  # Missing docstring in public package
+    "FBT001", # boolean-type-hint-positional-argument
+    "N802",  # Function name {name} should be lowercase
+    "N816",  # Variable {name} in global scope should not be mixedCase
+    "PLR0913", # Too many arguments in function definition
+    "S101",  # Use of assert detected
+    "SLF001", # Private member accessed: {access}
+    "T201",  # print found
+]
+"example.py" = [
+    "D",     # docstrings not required in example script
+    "T201",  # print allowed
+    "ANN",   # annotations not strictly required
+    "INP001", # implicit namespace package
+]
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+
+[tool.ruff.lint.isort]
+known-first-party = ["iotawattpy"]
+force-sort-within-sections = true
+split-on-trailing-comma = false
+combine-as-imports = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 25
