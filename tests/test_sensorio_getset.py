@@ -7,7 +7,7 @@ import pytest
 from iotawattpy.sensor import Sensor
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def sensor() -> Sensor:
     return Sensor("", "myname", "", "Input", "Watts", 102, "2021-01-01", "deadbeef")
 

@@ -88,3 +88,26 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           fail_ci_if_error: false
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⤵️ Check out code from GitHub
+        uses: actions/checkout@v4
+      - name: 🏗 Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: 🚀 Build sdist and wheel
+        run: uv build
+      - name: 🧪 Install built wheel and import package
+        run: |
+          uv venv /tmp/install-test
+          uv pip install --python /tmp/install-test/bin/python dist/*.whl
+          /tmp/install-test/bin/python -c "import iotawattpy; print(iotawattpy.__file__)"
+      - name: ⬆️ Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
