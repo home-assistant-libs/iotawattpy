@@ -32,9 +32,12 @@ class Tester:
                 self._password,
             )
             try:
-                await iotawatt.connect()
+                connected = await iotawatt.connect()
             except httpx.HTTPStatusError:
                 LOGGER.exception("Connect failed")
+                return
+            if not connected:
+                LOGGER.error("Failed to connect to IoTaWatt (check credentials?)")
                 return
 
             while True:

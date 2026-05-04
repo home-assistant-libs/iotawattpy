@@ -40,6 +40,10 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.13", "3.14"]
+    env:
+      # Force uv to use the matrix interpreter rather than the version
+      # pinned in .python-version.
+      UV_PYTHON: ${{ matrix.python }}
     steps:
       - name: ⤵️ Check out code from GitHub
         uses: actions/checkout@v4

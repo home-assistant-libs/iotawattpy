@@ -94,7 +94,7 @@ asyncio_mode = "auto"
 
 [tool.ruff.lint]
 ignore = [
-  "ANN401", # Opinioated warning on disallowing dynamically typed expressions
+  "ANN401", # Opinionated warning on disallowing dynamically typed expressions
   "COM812", # Recommended to disable due conflicts with ruff format
   "D203", # Conflicts with other rules
   "D213", # Conflicts with other rules
