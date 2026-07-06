@@ -83,11 +83,12 @@ class Iotawatt:
         if not self._getMACFlag:
             if not await self.connect():
                 url = f"http://{self._ip}/status?wifi=yes"
+                request = httpx.Request("GET", url)
                 msg = "Authentication with the IoTaWatt device failed"
                 raise httpx.HTTPStatusError(
                     msg,
-                    request=httpx.Request("GET", url),
-                    response=httpx.Response(httpx.codes.UNAUTHORIZED),
+                    request=request,
+                    response=httpx.Response(httpx.codes.UNAUTHORIZED, request=request),
                 )
             self._getMACFlag = True
         await self._refreshSensors(timespan, lastUpdate)
