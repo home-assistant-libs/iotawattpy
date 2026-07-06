@@ -9,7 +9,7 @@ description = "Python library for the IoTaWatt Energy device"
 readme      = "README.md"
 authors     = [
     {name = "Greg Diehl", email = "greg.diehl.gtd@gmail.com"},
-    {name = "Stefan Agner", email = "stefan.agner@openhomefoundation.org"},
+    {name = "Stefan Agner", email = "stefan@agner.ch"},
 ]
 keywords    = ["iotawatt", "energy", "home-assistant"]
 classifiers = [
