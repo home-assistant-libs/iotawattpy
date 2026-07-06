@@ -8,7 +8,8 @@ license     = {text = "GPL-3.0-or-later"}
 description = "Python library for the IoTaWatt Energy device"
 readme      = "README.md"
 authors     = [
-    {name = "Greg Diehl", email = "greg.diehl.gtd@gmail.com"}
+    {name = "Greg Diehl", email = "greg.diehl.gtd@gmail.com"},
+    {name = "Stefan Agner", email = "stefan.agner@openhomefoundation.org"},
 ]
 keywords    = ["iotawatt", "energy", "home-assistant"]
 classifiers = [
