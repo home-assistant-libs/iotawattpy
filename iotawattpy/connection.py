@@ -31,5 +31,5 @@ class Connection:
         try:
             return await self._websession.get(url, auth=auth)
         except httpx.HTTPError:
-            LOGGER.debug("HTTP error while requesting %s", url)
+            LOGGER.debug("HTTP error while requesting %s", url, exc_info=True)
             raise

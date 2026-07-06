@@ -81,7 +81,15 @@ class Iotawatt:
         the request (e.g. an authentication failure surfaces as a 401).
         """
         if not self._getMACFlag:
-            self._getMACFlag = await self.connect()
+            if not await self.connect():
+                url = f"http://{self._ip}/status?wifi=yes"
+                msg = "Authentication with the IoTaWatt device failed"
+                raise httpx.HTTPStatusError(
+                    msg,
+                    request=httpx.Request("GET", url),
+                    response=httpx.Response(httpx.codes.UNAUTHORIZED),
+                )
+            self._getMACFlag = True
         await self._refreshSensors(timespan, lastUpdate)
 
     def getLastUpdateTime(self) -> datetime | None:

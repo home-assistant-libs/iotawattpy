@@ -56,7 +56,7 @@ jobs:
       - name: 🏗 Install dependencies
         run: uv sync --frozen --dev
       - name: 🚀 Run pytest
-        run: uv run pytest --cov iotawattpy tests
+        run: uv run pytest tests
       - name: ⬆️ Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
