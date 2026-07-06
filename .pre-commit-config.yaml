@@ -11,14 +11,6 @@ repos:
       - id: ruff-format
         name: 🐶 Ruff format
 
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.21.2
-    hooks:
-      - id: pyupgrade
-        name: ⬆️  Upgrade Python syntax
-        args:
-          - --py313-plus
-
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

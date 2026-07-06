@@ -116,9 +116,6 @@ select = ["ALL"]
     "N815",   # Variable in class scope should not be mixedCase
     "FBT001", # Boolean-typed positional argument
     "FBT002", # Boolean default positional argument
-    "PLR0911", # Too many return statements
-    "PLR0912", # Too many branches
-    "PLR0915", # Too many statements
 ]
 "tests/**" = [
     "D100",  # Missing docstring in public module
@@ -148,6 +145,3 @@ known-first-party = ["iotawattpy"]
 force-sort-within-sections = true
 split-on-trailing-comma = false
 combine-as-imports = true
-
-[tool.ruff.lint.mccabe]
-max-complexity = 25

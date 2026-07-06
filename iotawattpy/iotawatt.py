@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-import json
 import logging
 from typing import Any
 
@@ -59,8 +58,6 @@ class Iotawatt:
         """Test the connection and capture the device MAC address."""
         url = f"http://{self._ip}/status?wifi=yes"
         results = await self._connection.get(url, self._username, self._password)
-        if results is None:
-            return False
         if results.status_code == httpx.codes.OK:
             jsonResults = results.json()
             self._macAddress = jsonResults["wifi"]["mac"].replace(":", "")
@@ -77,14 +74,15 @@ class Iotawatt:
 
     async def update(
         self, timespan: int = 30, lastUpdate: datetime | None = None
-    ) -> bool | None:
-        """Refresh sensor values from the device."""
+    ) -> None:
+        """Refresh sensor values from the device.
+
+        Raises ``httpx.HTTPError`` if the device cannot be reached or rejects
+        the request (e.g. an authentication failure surfaces as a 401).
+        """
         if not self._getMACFlag:
-            if not await self.connect():
-                return False
-            self._getMACFlag = True
+            self._getMACFlag = await self.connect()
         await self._refreshSensors(timespan, lastUpdate)
-        return None
 
     def getLastUpdateTime(self) -> datetime | None:
         """Return the timestamp of the last successful update."""
@@ -93,7 +91,9 @@ class Iotawatt:
     async def _getInputsandOutputs(self) -> httpx.Response:
         """Fetch the inputs and outputs status from the device."""
         url = f"http://{self._ip}/status?inputs=yes&outputs=yes"
-        return await self._connection.get(url, self._username, self._password)
+        response = await self._connection.get(url, self._username, self._password)
+        response.raise_for_status()
+        return response
 
     def _createOrUpdateSensor(
         self,
@@ -165,24 +165,20 @@ class Iotawatt:
                     suffix=".wh",
                 )
 
-    async def _refreshSensors(
+    async def _refreshSensors(  # noqa: C901, PLR0912, PLR0915
         self, timespan: int, lastUpdate: datetime | None
-    ) -> bool | None:
+    ) -> None:
         """Fetch the latest sensor values and update local state."""
         sensors = self._sensors["sensors"]
 
-        response: httpx.Response | None = await self._getInputsandOutputs()
-        if response is None:
-            return False
-        results: dict[str, Any] = json.loads(response.text)
+        response = await self._getInputsandOutputs()
+        results: dict[str, Any] = response.json()
         LOGGER.debug("IOResults: %s", results)
         inputs = results["inputs"]
         outputs = results["outputs"]
 
         query_response = await self._getQueryShowSeries()
-        if query_response is None:
-            return False
-        query: dict[str, Any] = json.loads(query_response.text)
+        query: dict[str, Any] = query_response.json()
         LOGGER.debug("Query: %s", query)
 
         self._removeStaleSensors(sensors, query)
@@ -234,9 +230,7 @@ class Iotawatt:
         response = await self._getQuerySelectSeriesCurrent(
             current_query_names, timespan
         )
-        if response is None:
-            return False
-        values = json.loads(response.text)
+        values = response.json()
         LOGGER.debug("Val: %s", values)
         for idx, entity in enumerate(current_query_entities):
             sensors[entity].setValue(values[0][idx])
@@ -247,16 +241,15 @@ class Iotawatt:
             for entity in integrated_total_query_entities
         ]
         LOGGER.debug("Sen: %s", integrated_total_query_names)
-        response = await self._getQuerySelectSeriesIntegrate(
+        integrate_response = await self._getQuerySelectSeriesIntegrate(
             integrated_total_query_names, self._integratedInterval
         )
-        if response is None:
-            return False
-        values = json.loads(response.text)
-        LOGGER.debug("Val: %s", values)
-        for idx, entity in enumerate(integrated_total_query_entities):
-            sensors[entity].setValue(values[0][idx + 1])
-            sensors[entity].setBegin(values[0][0])
+        if integrate_response is not None:
+            values = integrate_response.json()
+            LOGGER.debug("Val: %s", values)
+            for idx, entity in enumerate(integrated_total_query_entities):
+                sensors[entity].setValue(values[0][idx + 1])
+                sensors[entity].setBegin(values[0][0])
 
         # Integrated measurements since the previous query
         integrated_query_names = [
@@ -288,23 +281,21 @@ class Iotawatt:
             LOGGER.warning(
                 "Nothing to query, update() called too soon, must wait %ss", timespan
             )
-            return None
-        response = await self._getQuerySelectSeriesIntegrate(
+            return
+        integrate_response = await self._getQuerySelectSeriesIntegrate(
             integrated_query_names,
             lastUpdate.isoformat().split("+")[0] + "Z",
             now.isoformat().split("+")[0] + "Z",
             precision=".d3",
         )
-        if response is None:
-            return False
-        values = json.loads(response.text)
-        LOGGER.debug("Val: %s", values)
-        for idx, entity in enumerate(integrated_query_entities):
-            sensors[entity].setValue(values[0][idx + 1])
-            sensors[entity].setBegin(values[0][0])
+        if integrate_response is not None:
+            values = integrate_response.json()
+            LOGGER.debug("Val: %s", values)
+            for idx, entity in enumerate(integrated_query_entities):
+                sensors[entity].setValue(values[0][idx + 1])
+                sensors[entity].setBegin(values[0][0])
 
         self._lastUpdateTime = now
-        return None
 
     @staticmethod
     def _removeStaleSensors(sensors: dict[str, Sensor], query: dict[str, Any]) -> None:
@@ -323,7 +314,9 @@ class Iotawatt:
         """Fetch the available series from the device."""
         url = f"http://{self._ip}/query?show=series"
         LOGGER.debug("URL: %s", url)
-        return await self._connection.get(url, self._username, self._password)
+        response = await self._connection.get(url, self._username, self._password)
+        response.raise_for_status()
+        return response
 
     async def _getQuerySelectSeriesCurrent(
         self, sensor_names: list[str], timespan: int
@@ -339,7 +332,9 @@ class Iotawatt:
             f"?select=[{strSeries}]&begin=s-{timespan}s&end=s&group={timespan}s"
         )
         LOGGER.debug("Querying with URL %s", url)
-        return await self._connection.get(url, self._username, self._password)
+        response = await self._connection.get(url, self._username, self._password)
+        response.raise_for_status()
+        return response
 
     async def _getQuerySelectSeriesIntegrate(
         self,
@@ -375,4 +370,6 @@ class Iotawatt:
             f"?select=[time.iso,{strSeries}]&begin={start}&end={end}&group={group}"
         )
         LOGGER.debug("Querying with URL %s", url)
-        return await self._connection.get(url, self._username, self._password)
+        response = await self._connection.get(url, self._username, self._password)
+        response.raise_for_status()
+        return response
