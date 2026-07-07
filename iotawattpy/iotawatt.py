@@ -271,7 +271,7 @@ class Iotawatt:
         # incorrect results, so we use UTC.
         now = datetime.now(tz=UTC)
 
-        # The iotawatt only supports rounded seconds; round to the nearest 5s.
+        # The iotawatt only supports rounded seconds; round down to a 5s boundary.
         diff = now.second % _ROUND_SECONDS
         now -= timedelta(seconds=diff, microseconds=now.microsecond)
 
