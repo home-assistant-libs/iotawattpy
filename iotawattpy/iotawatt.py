@@ -241,8 +241,9 @@ class Iotawatt:
         )
         values = response.json()
         LOGGER.debug("Val: %s", values)
-        for idx, entity in enumerate(current_query_entities):
-            sensors[entity].setValue(values[0][idx])
+        if values:
+            for idx, entity in enumerate(current_query_entities):
+                sensors[entity].setValue(values[0][idx])
 
         # Integrated measurements since the beginning of the period
         integrated_total_query_names = [
@@ -256,9 +257,13 @@ class Iotawatt:
         if integrate_response is not None:
             values = integrate_response.json()
             LOGGER.debug("Val: %s", values)
-            for idx, entity in enumerate(integrated_total_query_entities):
-                sensors[entity].setValue(values[0][idx + 1])
-                sensors[entity].setBegin(values[0][0])
+            # The result is empty when the queried interval is zero-length,
+            # e.g. right at the start of the integration period (midnight
+            # for "d"). Keep the previous values until the next update.
+            if values:
+                for idx, entity in enumerate(integrated_total_query_entities):
+                    sensors[entity].setValue(values[0][idx + 1])
+                    sensors[entity].setBegin(values[0][0])
 
         # Integrated measurements since the previous query
         integrated_query_names = [
@@ -300,9 +305,10 @@ class Iotawatt:
         if integrate_response is not None:
             values = integrate_response.json()
             LOGGER.debug("Val: %s", values)
-            for idx, entity in enumerate(integrated_query_entities):
-                sensors[entity].setValue(values[0][idx + 1])
-                sensors[entity].setBegin(values[0][0])
+            if values:
+                for idx, entity in enumerate(integrated_query_entities):
+                    sensors[entity].setValue(values[0][idx + 1])
+                    sensors[entity].setBegin(values[0][0])
 
         self._lastUpdateTime = now
 
