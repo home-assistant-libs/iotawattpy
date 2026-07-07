@@ -89,7 +89,7 @@ repos:
         language: system
         types:
           - python
-        entry: uv run mypy
+        entry: uv run --frozen mypy
         require_serial: true
 
       - id: pytest
@@ -97,5 +97,5 @@ repos:
         language: system
         types:
           - python
-        entry: uv run pytest
+        entry: uv run --frozen pytest
         pass_filenames: false
