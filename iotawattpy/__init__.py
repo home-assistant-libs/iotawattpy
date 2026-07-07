@@ -1,3 +1,7 @@
-from .connection import Connection  # noqa: F401
-from .iotawatt import Iotawatt  # noqa: F401
-from .sensor import Sensor  # noqa: F401
+"""Python library for the IoTaWatt energy monitoring device."""
+
+from .connection import Connection
+from .iotawatt import Iotawatt
+from .sensor import Sensor
+
+__all__ = ["Connection", "Iotawatt", "Sensor"]

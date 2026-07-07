@@ -1,58 +1,62 @@
+"""Standalone CLI example for exercising the iotawattpy library."""
+
+from __future__ import annotations
+
 import argparse
 import asyncio
 import logging
-import sys
-import time
 
-from iotawattpy.iotawatt import Iotawatt
-from httpx import AsyncClient
 import httpx
 
-LOOP = asyncio.get_event_loop()
+from iotawattpy.iotawatt import Iotawatt
 
 logging.basicConfig(level="DEBUG")
+LOGGER = logging.getLogger(__name__)
 
 
 class Tester:
-    def __init__(self, ip_addr, username, password):
+    def __init__(
+        self, ip_addr: str, username: str | None, password: str | None
+    ) -> None:
         self._ip_addr = ip_addr
         self._username = username
         self._password = password
 
-    async def run(self):
-        self.session = AsyncClient()
-        self.iotawatt = Iotawatt(
-            "iotawatt", self._ip_addr, self.session, self._username, self._password
-        )
-        try:
-            await self.iotawatt.connect()
-        except httpx.HTTPStatusError as err:
-            logging.error("%s", err)
-            await self.session.aclose()
-            return
+    async def run(self) -> None:
+        async with httpx.AsyncClient() as session:
+            iotawatt = Iotawatt(
+                "iotawatt",
+                self._ip_addr,
+                session,
+                self._username,
+                self._password,
+            )
+            try:
+                connected = await iotawatt.connect()
+            except httpx.HTTPStatusError:
+                LOGGER.exception("Connect failed")
+                return
+            if not connected:
+                LOGGER.error("Failed to connect to IoTaWatt (check credentials?)")
+                return
 
-        while True:
-            logging.info("=============================================")
-            await self.iotawatt.update()
-            logging.info("=============================================")
-            time.sleep(5)
+            while True:
+                LOGGER.info("=" * 45)
+                await iotawatt.update()
+                LOGGER.info("=" * 45)
+                await asyncio.sleep(5)
 
 
-def main(argv):
-    my_parser = argparse.ArgumentParser(description="Run the IoTaWatt tester")
-    my_parser.add_argument(
-        "IPAddress", metavar="IP Address", type=str, help="IP Address of IoTaWatt"
-    )
-    my_parser.add_argument("-u", metavar="Username", type=str, help="Username")
-    my_parser.add_argument("-p", metavar="Password", type=str, help="Password")
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the IoTaWatt tester")
+    parser.add_argument("ip_address", help="IP address of the IoTaWatt")
+    parser.add_argument("-u", "--username", default=None)
+    parser.add_argument("-p", "--password", default=None)
+    args = parser.parse_args()
 
-    args = my_parser.parse_args()
-
-    logging.info("Started")
-
-    test = Tester(args.IPAddress, args.u, args.p)
-    LOOP.run_until_complete(test.run())
+    LOGGER.info("Started")
+    asyncio.run(Tester(args.ip_address, args.username, args.password).run())
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
