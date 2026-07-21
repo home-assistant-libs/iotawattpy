@@ -387,7 +387,10 @@ class Iotawatt:
         """Return the UNIX time of the oldest datalog record.
 
         Prefers the history log over the (shorter) current log. Returns 0
-        if the device does not report a usable datalog start.
+        if the device does not report a usable datalog start; firmware
+        without datalogs support responds 200 with the key absent.
+        Transport errors propagate like for any other device request so
+        the caller can retry with an accurate datalog start.
         """
         url = f"http://{self._ip}/status?datalogs=yes"
         response = await self._connection.get(url, self._username, self._password)

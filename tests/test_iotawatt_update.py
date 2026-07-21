@@ -41,13 +41,15 @@ async def websession() -> AsyncIterator[httpx.AsyncClient]:
 
 def _mock_device(
     integrated_result: list[list[str | float]],
-    datalogs: dict[str, Any] = STATUS_DATALOGS,
+    datalogs: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Mock the device HTTP endpoints.
 
     Returns a list capturing the parameters of every integrated
     (time.iso) query the library performs.
     """
+    if datalogs is None:
+        datalogs = STATUS_DATALOGS
     respx.get(f"http://{HOST}/status", params={"wifi": "yes"}).respond(json=STATUS_WIFI)
     respx.get(
         f"http://{HOST}/status", params={"inputs": "yes", "outputs": "yes"}
@@ -203,6 +205,7 @@ async def test_update_lifetime_only(websession: httpx.AsyncClient) -> None:
             id="clock-not-set",
         ),
         pytest.param({"datalogs": []}, "2000-01-01", id="no-datalogs"),
+        pytest.param({}, "2000-01-01", id="firmware-without-datalogs-support"),
     ],
 )
 @respx.mock
