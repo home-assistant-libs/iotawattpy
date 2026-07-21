@@ -15,6 +15,11 @@ LOGGER = logging.getLogger(__name__)
 
 _HTTP_UNAUTHORIZED = 401
 _ROUND_SECONDS = 5
+# The device only parses UNIX times of exactly 10 digits (i.e. after
+# 2001-09-09). Earlier keys fall back to a date the device clamps to the
+# oldest datalog record.
+_MIN_DATALOG_KEY = 1_000_000_000
+_DATALOG_FALLBACK_BEGIN = "2000-01-01"
 
 
 class Iotawatt:
@@ -29,6 +34,8 @@ class Iotawatt:
         password: str | None = None,
         integratedInterval: str = "y",
         includeNonTotalSensors: bool = True,
+        includeLifetimeSensors: bool = False,
+        includeTotalSensors: bool = True,
     ) -> None:
         """Initialize the device wrapper.
 
@@ -39,6 +46,12 @@ class Iotawatt:
         :param password: Optional digest-auth password.
         :param integratedInterval: Period for integrated WattHour queries.
         :param includeNonTotalSensors: Whether to add per-period energy sensors.
+        :param includeLifetimeSensors: Whether to add energy sensors integrating
+            since the start of the device datalog. These are monotonically
+            increasing meter readings independent of any reset period.
+        :param includeTotalSensors: Whether to add energy sensors integrating
+            since the start of the current period (integratedInterval).
+            Disabling this also skips the corresponding device query.
         """
         self._device_name = device_name
         self._ip = ip
@@ -47,7 +60,10 @@ class Iotawatt:
         self._password = password
         self._integratedInterval = integratedInterval
         self._includeNonTotalSensors = includeNonTotalSensors
+        self._includeLifetimeSensors = includeLifetimeSensors
+        self._includeTotalSensors = includeTotalSensors
         self._lastUpdateTime: datetime | None = None
+        self._datalogStart: int | None = None
 
         self._sensors: dict[str, dict[str, Sensor]] = {"sensors": {}}
 
@@ -114,6 +130,7 @@ class Iotawatt:
         unit: str,
         suffix: str | None = None,
         fromStart: bool = False,
+        lifetime: bool = False,
     ) -> None:
         """Create or update a single sensor entry."""
         if entity not in sensors:
@@ -128,6 +145,7 @@ class Iotawatt:
                 None,
                 self._macAddress,
                 fromStart,
+                lifetime,
             )
         else:
             sensor = sensors[entity]
@@ -136,6 +154,7 @@ class Iotawatt:
             sensor.setUnit(unit)
             sensor.setSensorID(self._macAddress)
             sensor.setFromStart(fromStart)
+            sensor.setLifetime(lifetime)
 
     def _createOrUpdateSensorSet(
         self,
@@ -153,16 +172,17 @@ class Iotawatt:
 
         # Also add Energy sensors (the integral of Power) for all Power sensors
         if unit == "Watts":
-            self._createOrUpdateSensor(
-                sensors,
-                entity + "_total_energy",
-                channel_nbr,
-                base_name,
-                io_type,
-                "WattHours",
-                suffix=".wh",
-                fromStart=True,
-            )
+            if self._includeTotalSensors:
+                self._createOrUpdateSensor(
+                    sensors,
+                    entity + "_total_energy",
+                    channel_nbr,
+                    base_name,
+                    io_type,
+                    "WattHours",
+                    suffix=".wh",
+                    fromStart=True,
+                )
             if self._includeNonTotalSensors:
                 self._createOrUpdateSensor(
                     sensors,
@@ -172,6 +192,17 @@ class Iotawatt:
                     io_type,
                     "WattHours",
                     suffix=".wh",
+                )
+            if self._includeLifetimeSensors:
+                self._createOrUpdateSensor(
+                    sensors,
+                    entity + "_lifetime_energy",
+                    channel_nbr,
+                    base_name,
+                    io_type,
+                    "WattHours",
+                    suffix=".wh",
+                    lifetime=True,
                 )
 
     async def _refreshSensors(  # noqa: C901, PLR0912, PLR0915
@@ -222,13 +253,16 @@ class Iotawatt:
         current_query_entities: list[str] = []
         integrated_total_query_entities: list[str] = []
         integrated_query_entities: list[str] = []
+        lifetime_query_entities: list[str] = []
         for entity, sensor in sensors.items():
-            if sensor.getUnit() == "WattHours" and sensor.getFromStart():
-                integrated_total_query_entities.append(entity)
-            elif sensor.getUnit() == "WattHours":
-                integrated_query_entities.append(entity)
-            else:
+            if sensor.getUnit() != "WattHours":
                 current_query_entities.append(entity)
+            elif sensor.getLifetime():
+                lifetime_query_entities.append(entity)
+            elif sensor.getFromStart():
+                integrated_total_query_entities.append(entity)
+            else:
+                integrated_query_entities.append(entity)
 
         # Current (right-now) measurements
         current_query_names = [
@@ -264,6 +298,30 @@ class Iotawatt:
                 for idx, entity in enumerate(integrated_total_query_entities):
                     sensors[entity].setValue(values[0][idx + 1])
                     sensors[entity].setBegin(values[0][0])
+
+        # Lifetime measurements since the start of the device datalog
+        if lifetime_query_entities:
+            if self._datalogStart is None:
+                self._datalogStart = await self._getDataLogStart()
+            begin = (
+                str(self._datalogStart)
+                if self._datalogStart >= _MIN_DATALOG_KEY
+                else _DATALOG_FALLBACK_BEGIN
+            )
+            lifetime_query_names = [
+                sensors[entity].getSourceName() for entity in lifetime_query_entities
+            ]
+            LOGGER.debug("Sen: %s", lifetime_query_names)
+            integrate_response = await self._getQuerySelectSeriesIntegrate(
+                lifetime_query_names, begin, precision=".d3"
+            )
+            if integrate_response is not None:
+                values = integrate_response.json()
+                LOGGER.debug("Val: %s", values)
+                if values:
+                    for idx, entity in enumerate(lifetime_query_entities):
+                        sensors[entity].setValue(values[0][idx + 1])
+                        sensors[entity].setBegin(values[0][0])
 
         # Integrated measurements since the previous query
         integrated_query_names = [
@@ -324,6 +382,24 @@ class Iotawatt:
         for key in keys_to_remove:
             LOGGER.debug("Removing stale entity: %s", key)
             sensors.pop(key)
+
+    async def _getDataLogStart(self) -> int:
+        """Return the UNIX time of the oldest datalog record.
+
+        Prefers the history log over the (shorter) current log. Returns 0
+        if the device does not report a usable datalog start; firmware
+        without datalogs support responds 200 with the key absent.
+        Transport errors propagate like for any other device request so
+        the caller can retry with an accurate datalog start.
+        """
+        url = f"http://{self._ip}/status?datalogs=yes"
+        response = await self._connection.get(url, self._username, self._password)
+        response.raise_for_status()
+        logs = {log.get("id"): log for log in response.json().get("datalogs", [])}
+        for log_id in ("History", "Current"):
+            if (log := logs.get(log_id)) and log.get("firstkey"):
+                return int(log["firstkey"])
+        return 0
 
     async def _getQueryShowSeries(self) -> httpx.Response:
         """Fetch the available series from the device."""
