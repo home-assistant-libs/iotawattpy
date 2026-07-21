@@ -21,6 +21,7 @@ class Sensor:
         begin: str | None,
         mac_addr: str,
         fromStart: bool = False,
+        lifetime: bool = False,
     ) -> None:
         """Initialize the sensor."""
         self._channel = channel
@@ -32,6 +33,7 @@ class Sensor:
         self._begin: str | None = begin
         self._sensor_id: str = ""
         self._fromStart = fromStart
+        self._lifetime = lifetime
 
         self.hub_mac_address = mac_addr
 
@@ -59,6 +61,8 @@ class Sensor:
 
     def getName(self) -> str:
         """Return the display name for this sensor."""
+        if self._lifetime:
+            return self.getSourceName() + "_lifetime"
         return self.getSourceName() + (
             "_last" if self._suffix == ".wh" and not self._fromStart else ""
         )
@@ -118,3 +122,11 @@ class Sensor:
     def setFromStart(self, fromStart: bool) -> None:
         """Set whether the sensor reports values from the start of the period."""
         self._fromStart = fromStart
+
+    def getLifetime(self) -> bool:
+        """Return whether the sensor reports values since the start of the datalog."""
+        return self._lifetime
+
+    def setLifetime(self, lifetime: bool) -> None:
+        """Set whether the sensor reports values since the start of the datalog."""
+        self._lifetime = lifetime
