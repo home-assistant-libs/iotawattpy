@@ -35,6 +35,7 @@ class Iotawatt:
         integratedInterval: str = "y",
         includeNonTotalSensors: bool = True,
         includeLifetimeSensors: bool = False,
+        includeTotalSensors: bool = True,
     ) -> None:
         """Initialize the device wrapper.
 
@@ -48,6 +49,9 @@ class Iotawatt:
         :param includeLifetimeSensors: Whether to add energy sensors integrating
             since the start of the device datalog. These are monotonically
             increasing meter readings independent of any reset period.
+        :param includeTotalSensors: Whether to add energy sensors integrating
+            since the start of the current period (integratedInterval).
+            Disabling this also skips the corresponding device query.
         """
         self._device_name = device_name
         self._ip = ip
@@ -57,6 +61,7 @@ class Iotawatt:
         self._integratedInterval = integratedInterval
         self._includeNonTotalSensors = includeNonTotalSensors
         self._includeLifetimeSensors = includeLifetimeSensors
+        self._includeTotalSensors = includeTotalSensors
         self._lastUpdateTime: datetime | None = None
         self._datalogStart: int | None = None
 
@@ -167,16 +172,17 @@ class Iotawatt:
 
         # Also add Energy sensors (the integral of Power) for all Power sensors
         if unit == "Watts":
-            self._createOrUpdateSensor(
-                sensors,
-                entity + "_total_energy",
-                channel_nbr,
-                base_name,
-                io_type,
-                "WattHours",
-                suffix=".wh",
-                fromStart=True,
-            )
+            if self._includeTotalSensors:
+                self._createOrUpdateSensor(
+                    sensors,
+                    entity + "_total_energy",
+                    channel_nbr,
+                    base_name,
+                    io_type,
+                    "WattHours",
+                    suffix=".wh",
+                    fromStart=True,
+                )
             if self._includeNonTotalSensors:
                 self._createOrUpdateSensor(
                     sensors,

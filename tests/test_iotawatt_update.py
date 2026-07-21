@@ -160,6 +160,29 @@ async def test_update_lifetime_datalog_start_cached(
     assert datalogs_route.call_count == 1
 
 
+@respx.mock
+async def test_update_lifetime_only(websession: httpx.AsyncClient) -> None:
+    """Without total sensors, the period query is not issued at all."""
+    integrated_queries = _mock_device(INTEGRATED_RESULT)
+    iotawatt = Iotawatt(
+        "test",
+        HOST,
+        websession,
+        integratedInterval="d",
+        includeNonTotalSensors=False,
+        includeLifetimeSensors=True,
+        includeTotalSensors=False,
+    )
+
+    await iotawatt.update()
+
+    sensors = iotawatt.getSensors()["sensors"]
+    assert "input_0_total_energy" not in sensors
+    assert sensors["input_0"].getValue() == 123.4
+    assert sensors["input_0_lifetime_energy"].getValue() == 12345678.912
+    assert [q["begin"] for q in integrated_queries] == ["1600000000"]
+
+
 @pytest.mark.parametrize(
     ("datalogs", "expected_begin"),
     [
