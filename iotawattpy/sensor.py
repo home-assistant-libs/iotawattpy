@@ -31,13 +31,10 @@ class Sensor:
         self._unit = unit
         self._value: float | None = value
         self._begin: str | None = begin
-        self._sensor_id: str = ""
         self._fromStart = fromStart
         self._lifetime = lifetime
 
         self.hub_mac_address = mac_addr
-
-        self.setSensorID(mac_addr)
 
     def getChannel(self) -> str:
         """Return the channel identifier."""
@@ -48,12 +45,12 @@ class Sensor:
         self._channel = channel
 
     def getSensorID(self) -> str:
-        """Return the unique sensor ID."""
-        return self._sensor_id
+        """Return the sensor ID computed from the hub MAC and current name."""
+        return f"{self.hub_mac_address}_{self._type}_{self.getName()}"
 
     def setSensorID(self, hub_mac_address: str) -> None:
-        """Compute and set the sensor ID from the hub MAC and name."""
-        self._sensor_id = f"{hub_mac_address}_{self._type}_{self.getName()}"
+        """Set the hub MAC address the sensor ID is computed from."""
+        self.hub_mac_address = hub_mac_address
 
     def getSourceName(self) -> str:
         """Return the source name (base name + optional suffix)."""
