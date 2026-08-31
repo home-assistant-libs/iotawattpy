@@ -315,8 +315,10 @@ class Iotawatt:
                 if self._datalogStart >= _MIN_DATALOG_KEY
                 else _DATALOG_FALLBACK_BEGIN
             )
-            # Energy sensors carry the .wh method in their source name, the
-            # VARh unit method however needs to be appended explicitly.
+            # Energy sensors have the .wh query method baked into their
+            # source name since their unit ("WattHours") does not match a
+            # query method. For VARh sensors the unit doubles as the query
+            # method and is appended here.
             lifetime_query_names = [
                 sensors[entity].getSourceName()
                 + (".varh" if sensors[entity].getUnit() == "VARh" else "")
