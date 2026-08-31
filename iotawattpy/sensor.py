@@ -21,6 +21,7 @@ class Sensor:
         begin: str | None,
         mac_addr: str,
         fromStart: bool = False,
+        lifetime: bool = False,
     ) -> None:
         """Initialize the sensor."""
         self._channel = channel
@@ -30,12 +31,10 @@ class Sensor:
         self._unit = unit
         self._value: float | None = value
         self._begin: str | None = begin
-        self._sensor_id: str = ""
         self._fromStart = fromStart
+        self._lifetime = lifetime
 
         self.hub_mac_address = mac_addr
-
-        self.setSensorID(mac_addr)
 
     def getChannel(self) -> str:
         """Return the channel identifier."""
@@ -46,12 +45,12 @@ class Sensor:
         self._channel = channel
 
     def getSensorID(self) -> str:
-        """Return the unique sensor ID."""
-        return self._sensor_id
+        """Return the sensor ID computed from the hub MAC and current name."""
+        return f"{self.hub_mac_address}_{self._type}_{self.getName()}"
 
     def setSensorID(self, hub_mac_address: str) -> None:
-        """Compute and set the sensor ID from the hub MAC and name."""
-        self._sensor_id = f"{hub_mac_address}_{self._type}_{self.getName()}"
+        """Set the hub MAC address the sensor ID is computed from."""
+        self.hub_mac_address = hub_mac_address
 
     def getSourceName(self) -> str:
         """Return the source name (base name + optional suffix)."""
@@ -59,6 +58,8 @@ class Sensor:
 
     def getName(self) -> str:
         """Return the display name for this sensor."""
+        if self._lifetime:
+            return self.getSourceName() + "_lifetime"
         return self.getSourceName() + (
             "_last" if self._suffix == ".wh" and not self._fromStart else ""
         )
@@ -118,3 +119,11 @@ class Sensor:
     def setFromStart(self, fromStart: bool) -> None:
         """Set whether the sensor reports values from the start of the period."""
         self._fromStart = fromStart
+
+    def getLifetime(self) -> bool:
+        """Return whether the sensor reports values since the start of the datalog."""
+        return self._lifetime
+
+    def setLifetime(self, lifetime: bool) -> None:
+        """Set whether the sensor reports values since the start of the datalog."""
+        self._lifetime = lifetime
