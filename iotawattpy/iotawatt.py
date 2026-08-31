@@ -36,6 +36,7 @@ class Iotawatt:
         includeNonTotalSensors: bool = True,
         includeLifetimeSensors: bool = False,
         includeTotalSensors: bool = True,
+        integrateReactiveSensors: bool = False,
     ) -> None:
         """Initialize the device wrapper.
 
@@ -52,6 +53,9 @@ class Iotawatt:
         :param includeTotalSensors: Whether to add energy sensors integrating
             since the start of the current period (integratedInterval).
             Disabling this also skips the corresponding device query.
+        :param integrateReactiveSensors: Whether VARh sensors report reactive
+            energy integrated since the start of the device datalog instead
+            of the reactive energy of the last update interval.
         """
         self._device_name = device_name
         self._ip = ip
@@ -62,6 +66,7 @@ class Iotawatt:
         self._includeNonTotalSensors = includeNonTotalSensors
         self._includeLifetimeSensors = includeLifetimeSensors
         self._includeTotalSensors = includeTotalSensors
+        self._integrateReactiveSensors = integrateReactiveSensors
         self._lastUpdateTime: datetime | None = None
         self._datalogStart: int | None = None
 
@@ -255,7 +260,9 @@ class Iotawatt:
         integrated_query_entities: list[str] = []
         lifetime_query_entities: list[str] = []
         for entity, sensor in sensors.items():
-            if sensor.getUnit() != "WattHours":
+            if sensor.getUnit() == "VARh" and self._integrateReactiveSensors:
+                lifetime_query_entities.append(entity)
+            elif sensor.getUnit() != "WattHours":
                 current_query_entities.append(entity)
             elif sensor.getLifetime():
                 lifetime_query_entities.append(entity)
@@ -308,8 +315,14 @@ class Iotawatt:
                 if self._datalogStart >= _MIN_DATALOG_KEY
                 else _DATALOG_FALLBACK_BEGIN
             )
+            # Energy sensors have the .wh query method baked into their
+            # source name since their unit ("WattHours") does not match a
+            # query method. For VARh sensors the unit doubles as the query
+            # method and is appended here.
             lifetime_query_names = [
-                sensors[entity].getSourceName() for entity in lifetime_query_entities
+                sensors[entity].getSourceName()
+                + (".varh" if sensors[entity].getUnit() == "VARh" else "")
+                for entity in lifetime_query_entities
             ]
             LOGGER.debug("Sen: %s", lifetime_query_names)
             integrate_response = await self._getQuerySelectSeriesIntegrate(
