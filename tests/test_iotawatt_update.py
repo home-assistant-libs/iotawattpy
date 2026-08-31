@@ -32,6 +32,21 @@ CURRENT_RESULT = [[123.4]]
 INTEGRATED_RESULT: list[list[str | float]] = [["2024-09-02T00:00:00", 4567]]
 LIFETIME_RESULT: list[list[str | float]] = [["2020-09-13T14:26:40", 12345678.912]]
 
+STATUS_INPUTS_OUTPUTS_REACTIVE = {
+    "inputs": [{"channel": 0, "Watts": "123"}],
+    "outputs": [{"name": "reactive", "units": "VARh"}],
+}
+SHOW_SERIES_REACTIVE = {
+    "series": [
+        {"name": "Main", "unit": "Watts"},
+        {"name": "reactive", "unit": "VARh"},
+    ]
+}
+CURRENT_RESULT_REACTIVE = [[123.4, 55.5]]
+LIFETIME_RESULT_REACTIVE: list[list[str | float]] = [
+    ["2020-09-13T14:26:40", 12345678.912, 4321.5]
+]
+
 
 @pytest.fixture
 async def websession() -> AsyncIterator[httpx.AsyncClient]:
@@ -42,6 +57,10 @@ async def websession() -> AsyncIterator[httpx.AsyncClient]:
 def _mock_device(
     integrated_result: list[list[str | float]],
     datalogs: dict[str, Any] | None = None,
+    inputs_outputs: dict[str, Any] | None = None,
+    show_series: dict[str, Any] | None = None,
+    current_result: list[list[float]] | None = None,
+    lifetime_result: list[list[str | float]] | None = None,
 ) -> list[dict[str, str]]:
     """Mock the device HTTP endpoints.
 
@@ -50,10 +69,18 @@ def _mock_device(
     """
     if datalogs is None:
         datalogs = STATUS_DATALOGS
+    if inputs_outputs is None:
+        inputs_outputs = STATUS_INPUTS_OUTPUTS
+    if show_series is None:
+        show_series = SHOW_SERIES
+    if current_result is None:
+        current_result = CURRENT_RESULT
+    if lifetime_result is None:
+        lifetime_result = LIFETIME_RESULT
     respx.get(f"http://{HOST}/status", params={"wifi": "yes"}).respond(json=STATUS_WIFI)
     respx.get(
         f"http://{HOST}/status", params={"inputs": "yes", "outputs": "yes"}
-    ).respond(json=STATUS_INPUTS_OUTPUTS)
+    ).respond(json=inputs_outputs)
     respx.get(f"http://{HOST}/status", params={"datalogs": "yes"}).respond(
         json=datalogs
     )
@@ -63,13 +90,13 @@ def _mock_device(
     def query(request: httpx.Request) -> httpx.Response:
         params = request.url.params
         if params.get("show") == "series":
-            return httpx.Response(200, json=SHOW_SERIES)
+            return httpx.Response(200, json=show_series)
         if params["select"].startswith("[time.iso"):
             integrated_queries.append(dict(params))
             if params["begin"] == "d":
                 return httpx.Response(200, json=integrated_result)
-            return httpx.Response(200, json=LIFETIME_RESULT)
-        return httpx.Response(200, json=CURRENT_RESULT)
+            return httpx.Response(200, json=lifetime_result)
+        return httpx.Response(200, json=current_result)
 
     respx.get(f"http://{HOST}/query").mock(side_effect=query)
     return integrated_queries
@@ -229,3 +256,61 @@ async def test_update_lifetime_begin_selection(
 
     lifetime_query = next(q for q in integrated_queries if q["begin"] != "d")
     assert lifetime_query["begin"] == expected_begin
+
+
+@respx.mock
+async def test_update_reactive_sensor_default(websession: httpx.AsyncClient) -> None:
+    """By default, VARh sensors report the last update interval."""
+    integrated_queries = _mock_device(
+        INTEGRATED_RESULT,
+        inputs_outputs=STATUS_INPUTS_OUTPUTS_REACTIVE,
+        show_series=SHOW_SERIES_REACTIVE,
+        current_result=CURRENT_RESULT_REACTIVE,
+    )
+    iotawatt = Iotawatt(
+        "test", HOST, websession, integratedInterval="d", includeNonTotalSensors=False
+    )
+
+    await iotawatt.update()
+
+    sensors = iotawatt.getSensors()["sensors"]
+    assert sensors["output_reactive"].getName() == "reactive"
+    assert sensors["output_reactive"].getValue() == 55.5
+    assert sensors["output_reactive"].getBegin() is None
+    assert not any("varh" in query["select"] for query in integrated_queries)
+
+
+@respx.mock
+async def test_update_reactive_sensor_integrated(
+    websession: httpx.AsyncClient,
+) -> None:
+    """With integrateReactiveSensors, VARh sensors become meter readings."""
+    integrated_queries = _mock_device(
+        INTEGRATED_RESULT,
+        inputs_outputs=STATUS_INPUTS_OUTPUTS_REACTIVE,
+        show_series=SHOW_SERIES_REACTIVE,
+        lifetime_result=LIFETIME_RESULT_REACTIVE,
+    )
+    iotawatt = Iotawatt(
+        "test",
+        HOST,
+        websession,
+        integratedInterval="d",
+        includeNonTotalSensors=False,
+        includeLifetimeSensors=True,
+        includeTotalSensors=False,
+        integrateReactiveSensors=True,
+    )
+
+    await iotawatt.update()
+
+    sensors = iotawatt.getSensors()["sensors"]
+    assert sensors["output_reactive"].getName() == "reactive"
+    assert sensors["output_reactive"].getValue() == 4321.5
+    assert sensors["output_reactive"].getBegin() == "2020-09-13T14:26:40"
+    assert sensors["input_0_lifetime_energy"].getValue() == 12345678.912
+
+    # All lifetime series are fetched with a single query.
+    assert len(integrated_queries) == 1
+    assert integrated_queries[0]["begin"] == "1600000000"
+    assert integrated_queries[0]["select"] == "[time.iso,Main.wh.d3,reactive.varh.d3]"
